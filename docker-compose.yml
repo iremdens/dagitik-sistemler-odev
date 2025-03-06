@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Veritabanı
+  postgres:
+    image: postgres:16  # İlk dosyadaki gibi belirli bir sürüm kullanıldı
+    container_name: my_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234  # İlk dosyadaki gibi tutarak tutarlılık sağlandı
+      POSTGRES_DB: dagitiksistem  # İlk dosyaya uygun olarak değiştirildi
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
+
+  # Redis Cache Servisi
+  redis:
+    image: redis:latest
+    container_name: redis
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend
+
+  # İlk Spring Boot Uygulaması
+  springboot-app-1:
+    build: .
+    container_name: springboot-app-1
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://my_postgres:5432/dagitiksistem
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=1234
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    networks:
+      - backend
+    depends_on:
+      - postgres
+      - redis
+
+  # İkinci Spring Boot Uygulaması (Replikasyon)
+  springboot-app-2:
+    build: .
+    container_name: springboot-app-2
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://my_postgres:5432/dagitiksistem
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=1234
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    networks:
+      - backend
+    depends_on:
+      - postgres
+      - redis
+
+  # Nginx Load Balancer
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    ports:
+      - "8081:80"  # İlk dosyadaki gibi dışarıdan erişim için 8081 portu ayarlandı
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro  # Nginx yapılandırması
+    networks:
+      - backend
+    depends_on:
+      - springboot-app-1
+      - springboot-app-2
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+
